@@ -58,3 +58,20 @@ create role admin with superuser login password 'admin';
 alter user admin with password 'something';
 
 ```
+
+## psql コマンドで非インタラクティブにSQL文を実行する
+
+```
+
+# psqlコマンドで SQL文を実行する
+# create role 文
+psql -c " create role admin with superuser login password 'admin';"
+
+# 実行ユーザを指定する場合
+psql -U postgres -c " create role admin with superuser login password 'admin'"
+
+# 実行ユーザのパスワードを変更する場合
+psql -U postgres -c " alter role admin with password 'admin' ";
+
+
+```
