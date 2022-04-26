@@ -1,6 +1,6 @@
 
 
-#　ローカル環境において開発用のpostgresqlサーバーをDockerで構築する
+# ローカル環境において開発用のpostgresqlサーバーをDockerで構築する
 
 
 ## postgresql用のボリュームを作成する
@@ -86,3 +86,70 @@ psql -U postgres -c " alter role admin with password 'admin' ";
 
 
 ```
+
+## 作成したpostgres dockerコンテナの時間をJSTに変更する
+
+```
+# 本dockerコンテナはDebianであることを前提
+# dateコマンドで現在のタイムゾーンを調べる
+
+date
+# Tue 26 Apr 2022 02:21:47 AM UTC
+
+```
+
+上記のようにUTCタイムとなっているのでこれをJSTに変更する
+
+```
+root@1901b0bfa9fd:/# ls -al /etc/localtime
+lrwxrwxrwx 1 root root 27 Mar 16 00:00 /etc/localtime -> /usr/share/zoneinfo/Etc/UTC
+
+```
+現在のタイムゾーンファイルがUTCを参照しているので
+これをAsia/Tokyoに変更する
+
+
+```
+# 現状のタイムゾーンファイルのバックアップを取る
+cp /etc/localtime /etc/localtime.backup
+
+
+ls -a /usr/share/zoneinfo
+
+.           Atlantic   Cuba     Europe   GMT0       iso3166.tab        Libya      NZ          PRC        tzdata.zi  zone1970.tab
+..          Australia  EET      Factory  Greenwich  Israel             localtime  NZ-CHAT     PST8PDT    UCT        zone.tab
+Africa      Brazil     Egypt    GB       Hongkong   Jamaica            MET        Pacific     right      Universal  Zulu
+America     Canada     Eire     GB-Eire  HST        Japan              Mexico     Poland      ROC        US
+Antarctica  CET        EST      GMT      Iceland    Kwajalein          MST        Portugal    ROK        UTC
+Arctic      Chile      EST5EDT  GMT+0    Indian     leapseconds        MST7MDT    posix       Singapore  WET
+Asia        CST6CDT    Etc      GMT-0    Iran       leap-seconds.list  Navajo     posixrules  Turkey     W-SU
+
+```
+上記のタイムゾーンファイル一覧にJapanがあるのでシンボリックリンクを貼る
+
+
+```
+# シンボリックリンクを貼るコマンド
+ln -sf /usr/share/zoneinfo/Japan /etc/localtime
+
+# コマンドを実行して JST になっていることを確認する
+date
+Tue 26 Apr 2022 11:26:32 AM JST
+
+
+```
+
+ちなみに
+
+```
+# 以下を実行すると
+ls -al  /usr/share/zoneinfo/Japan
+
+# lrwxrwxrwx 1 root root 10 Oct 26 02:14 /usr/share/zoneinfo/Japan -> Asia/Tokyo
+
+```
+上記の用に
+
+/usr/share/zoneinfo/Asia/Tokyo => /usr/share/zoneinfo/Japan
+シンボリックリンクがはられているのが確認できる
+
