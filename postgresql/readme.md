@@ -16,7 +16,18 @@ docker volume create postgresql-14
 ## docker image からコンテナを作成する
 
 ```
-docker container create --name postgresql-14 -v postgresql-14:/var/lib/postgresql/data -p 1234:5432 -e POSTGRES_PASSWORD=postgres postgres:14
+# 旧来の -vオプションを利用した場合
+docker container create --name postgresql-14  \
+-v postgresql-14:/var/lib/postgresql/data \
+-p 1234:5432 \
+-e POSTGRES_PASSWORD=postgres postgres:14
+
+# 新しい --mount type=~コマンドを利用した場合
+# --mountコマンドのtypeオプションにvolumeを指定する
+docker container create --name test-postgresql-14 \
+--mount type=volume,src=test-postgresql-14,dst=/var/lib/postgresql/data \
+-p 2234:5432 \
+-e POSTGRES_PASSWORD=postgres postgres:14
 
 # 上記コマンドを実行してコンテナを作成
 
