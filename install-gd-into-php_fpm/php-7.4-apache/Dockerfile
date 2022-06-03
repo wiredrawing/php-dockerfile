@@ -12,6 +12,8 @@ RUN apt update && apt install -y  libpng-dev  \
     libpq-dev \
     libssl-dev \
     libffi-dev\
+    libgmp-dev \
+    libtidy-dev \
     vim \
     unzip \
     nodejs \
@@ -33,6 +35,7 @@ RUN docker-php-ext-install -j$(nproc) gd  \
     pdo \
     pdo_pgsql  \
     pdo_mysql \
+    mysqli \
     zip \
     ftp \
     sockets \
