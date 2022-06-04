@@ -36,4 +36,12 @@ RUN docker-php-ext-install -j$(nproc) gd  \
     ftp \
     sockets
 
+# ------------------------------------------------------------
+# ImageMagick をインストールする
+# ------------------------------------------------------------
+RUN apt -y install imagemagick libmagickwand-dev && \
+    pecl install imagick &&  \
+    docker-php-ext-enable imagick
+
+
 COPY --from=composer /usr/bin/composer /usr/bin/composer

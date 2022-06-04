@@ -45,6 +45,13 @@ RUN docker-php-ext-install -j$(nproc) gd  \
     ffi \
     tidy
 
+# ------------------------------------------------------------
+# ImageMagick をインストールする
+# ------------------------------------------------------------
+RUN apt -y install imagemagick libmagickwand-dev && \
+    pecl install imagick &&  \
+    docker-php-ext-enable imagick
+
 
 
 # apache mod_rewriteの有効化
