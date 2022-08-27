@@ -153,3 +153,7 @@ ls -al  /usr/share/zoneinfo/Japan
 /usr/share/zoneinfo/Asia/Tokyo => /usr/share/zoneinfo/Japan
 シンボリックリンクがはられているのが確認できる
 
+
+## コマンドラインで psqlコマンド実行時にパスワードを省略したい
+
+**ホームディレクトリに.pgpassという隠しファイルを作成する**
