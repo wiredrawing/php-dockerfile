@@ -1,0 +1,108 @@
+1. mysqlのサイトより対象のリポジトリをインストールする
+
+以下RPM一覧から任意のインストールしたいバージョンを選択する
+https://dev.mysql.com/downloads/repo/yum/
+
+※例えば MySQL 8系ならこれ
+yum localinstall https://dev.mysql.com/get/mysql80-community-release-el7-6.noarch.rpm
+
+※MySQL 5.7系ならこれ
+yum localinstall https://dev.mysql.com/get/mysql80-community-release-el7-3.noarch.rpm
+
+
+2. yum-config-managerがデフォルトで使用できないためインストールする
+yum install yum-utils
+
+3. which yum-config-manager
+上記コマンドで､インストールを確認する
+
+
+4.現在インストール可能なmysqlバージョンを確認する
+yum info mysql-community-server
+
+===========================================================
+Loading mirror speeds from cached hostfile
+ * base: mirrors.cat.net
+ * epel: mirrors.nipa.cloud
+ * extras: mirrors.cat.net
+ * updates: mirrors.cat.net
+Available Packages
+Name        : mysql-community-server
+Arch        : x86_64
+Version     : 8.0.27
+Release     : 1.el7
+Size        : 448 M
+Repo        : mysql80-community/x86_64
+Summary     : A very fast and reliable SQL database server
+URL         : http://www.mysql.com/
+===========================================================
+
+多分上記のような感じのものが表示される
+
+
+5. mysqlバージョン8を無効化する
+yum-config-manager --disable mysql80-community
+
+6. mysqlバージョン5.7を有効化する
+yum-config-manager --enable mysql57-community
+
+7. 有効化されたmysqlのバージョンを確認する
+yum info mysql-community-server
+
+===========================================================
+Loaded plugins: fastestmirror
+Loading mirror speeds from cached hostfile
+ * base: mirrors.cat.net
+ * epel: mirrors.nipa.cloud
+ * extras: mirrors.cat.net
+ * updates: mirrors.cat.net
+mysql-connectors-community                                                                                                                               | 2.6 kB  00:00:00
+
+mysql-tools-community                                                                                                                                    | 2.6 kB  00:00:00
+
+mysql57-community                                                                                                                                        | 2.6 kB  00:00:00
+
+mysql57-community/x86_64/primary_db                                                                                                                      | 288 kB  00:00:00
+
+Available Packages
+Name        : mysql-community-server
+Arch        : x86_64
+Version     : 5.7.36
+Release     : 1.el7
+Size        : 174 M
+Repo        : mysql57-community/x86_64
+Summary     : A very fast and reliable SQL database server
+URL         : http://www.mysql.com/
+===========================================================
+※上記の様にmysql5.7が有効になっていることを確認する
+
+8. mysql5.7をインストールする
+yum install mysql-community-server
+
+
+9.mysqlインストールエラーについて
+
+※2022年6月3日時点で
+Retrieving key from file:///etc/pki/rpm-gpg/RPM-GPG-KEY-mysql-2022
+
+GPG key retrieval failed: [Errno 14] curl#37 - "Couldn't open file /etc/pki/rpm-gpg/RPM-GPG-KEY-mysql-2022"
+
+上記のようなエラーがでる.こればMysqlインストール時のパッケージの署名キーがマッチしないためらしい.
+その場合は
+
+解決方法
+新しいGPGキーをインポートしてから、MySQLをインストールする
+yumの場合（CentOS 7）
+
+$ sudo rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
+
+
+10.rootアカウントのパスワード確認
+cat /var/log/mysqld.log  | grep root@localhost
+上記のログ・ファイルにrootの初期パスワードが記録されている
+
+※パスワードサンプル)Sunmark.Nasse.Messa.n092
+
+110./usr/bin/mysql_secure_installation コマンドを実行してセキュリティ設定を実行する
+
+

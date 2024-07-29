@@ -1,0 +1,170 @@
+###############################################
+#nasse 開発用サーバー PHPインストール 手順書
+###############################################
+
+■インストール手順はremi-repositoryのサイトでconfigurationを確認して下さい
+
+remi-repo => https://rpms.remirepo.net/wizard/
+
+
+(1)yum install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+
+(2)yum install https://rpms.remirepo.net/enterprise/remi-release-7.rpm
+
+(3)yum install yum-utils
+
+(4)subscription-manager repos --enable=rhel-7-server-optional-rpms
+
+(5)yum  install php73
+
+(6)yum search httpd php73
+
+(7)yum install php73-php73
+(※このコマンドだけで､httpdとそれに必要なアパッチ用PHPモジュールがインストールされる模様)
+
+(8) yum install php73-php-xml \
+    php73-php-pdo \
+    php73-php-mysql \
+    php73-php-pgsql \
+    php73-php-gd \
+    php73-php-mbstring \
+    php73-php-fpm
+(※必要そうなエクステンション)
+
+
+(9)yum install https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+※ webサーバーにpostgresqlのリポジトリ追加の利用は
+webサーバーからDBサーバーにpostgresqlのコマンドラインツールからアクセスできるように
+DBサーバーと同じバージョンのCLIツールをインストールする
+
+(10)yum install postgresql11
+(※ yum install postgresql11-server とするとサーバーデーモンまでインストールされるので注意して下さい.)
+(※webサーバー側は､クライアントツールのみインストール､サーバーはインストールしないこと)
+
+
+(11)この時点だと which php コマンドではphpのバイナリをみつけれないので php73というバイナリにシンボリックリンクを貼る
+
+```
+cd /usr/bin
+ln -s /opt/remi/php73/root/usr/bin/php php
+```
+
+上記コマンドで php というコマンドで php73が実行できるようになる.
+composerコマンドのインストールに必要なので実行しておく.
+
+!!※シンボリックリンク作成時は rmコマンドではなくunlinkコマンドでリンクを削除する!!
+
+
+(12)https://getcomposer.org/
+phpコマンドを叩けるようになったら上記URLより
+composerコマンドをインストールする
+
+※composer.pharではなくcomposerというコマンドで実行できるようにファイル名の変更を
+忘れずにやる
+
+
+
+
+###############################################
+# nasse開発用DBサーバー postgresインストール手順書
+###############################################
+
+
+※nasse移行用はpostgresql-11を使用(現時点の中間のバージョンです)
+(1)yum update
+
+(2)yum install epel-release
+
+(3)yum -y install https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+
+(4)yum install postgresql11-server
+
+(5)systemctl enable postgresql-11
+(※サービスの自動起動)
+
+(6)/usr/pgsql-11/bin/postgresql-11-setup initdb
+(※データベースクラスタを作成)
+
+(7)yum install postgresql11-contrib
+旧ナッセナビ管理画面で暗号化処理を行うための拡張をインストールする.
+その後管理画面認証に必要なdecrypt関数とencrypt関数の定義を追加する必要がある.
+(※参考サイト https://tech-lab.sios.jp/archives/7679)
+
+
+以下の関数定義のSQLを実行する
+--
+-- Name: decrypt(bytea, bytea, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION decrypt(bytea, bytea, text) RETURNS bytea
+    LANGUAGE c IMMUTABLE STRICT
+    AS '$libdir/pgcrypto', 'pg_decrypt';
+
+
+ALTER FUNCTION public.decrypt(bytea, bytea, text) OWNER TO postgres;
+
+--
+-- Name: decrypt_iv(bytea, bytea, bytea, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION decrypt_iv(bytea, bytea, bytea, text) RETURNS bytea
+    LANGUAGE c IMMUTABLE STRICT
+    AS '$libdir/pgcrypto', 'pg_decrypt_iv';
+
+
+ALTER FUNCTION public.decrypt_iv(bytea, bytea, bytea, text) OWNER TO postgres;
+
+
+--
+-- Name: encrypt(bytea, bytea, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION encrypt(bytea, bytea, text) RETURNS bytea
+    LANGUAGE c IMMUTABLE STRICT
+    AS '$libdir/pgcrypto', 'pg_encrypt';
+
+
+ALTER FUNCTION public.encrypt(bytea, bytea, text) OWNER TO postgres;
+
+--
+-- Name: encrypt_iv(bytea, bytea, bytea, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION encrypt_iv(bytea, bytea, bytea, text) RETURNS bytea
+    LANGUAGE c IMMUTABLE STRICT
+    AS '$libdir/pgcrypto', 'pg_encrypt_iv';
+
+
+ALTER FUNCTION public.encrypt_iv(bytea, bytea, bytea, text) OWNER TO postgres;
+
+
+
+
+
+(8)systemctl restart postgresql-11
+(※postgresサーバーを再起動)
+
+
+###############################################
+# apache上にWAFを構築するための設定
+###############################################
+
+(1)yum install mod_security mod_security_crs
+(※ apacheのセキュリティモジュール)
+
+
+(2)systemctl restart httpd
+(※ 再起動直後からWAFが動作するため運用中サイトが有る場合は注意)
+
+(3) /etc/httpd/modsecurity.d/activated_rules
+※ 上記ディレクトリに,適用するwafのルールを格納する
+デフォルトでは全ルールが格納されているため適宜必要そうなルール以外を
+別ディレクトリへ退避させる
+
+
+※nasse.com移行用サーバーでは
+modsecurity_crs_41_sql_injection_attacks.conf
+modsecurity_crs_41_xss_attacks.conf
+modsecurity_crs_42_tight_security.conf
+上記3つのルールのみを適用
+適宜変更して下さい

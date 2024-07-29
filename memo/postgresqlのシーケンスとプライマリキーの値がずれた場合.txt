@@ -1,0 +1,47 @@
+
+
+Postgresql上において､SQLレコードを一括登録した場合において､
+
+現在のシーケンスマックス値と一括登録したレコードのmax(id)とずれてしまった場合の
+
+シーケンスidをマッチさせるためには以下の用にして下さい｡
+
+
+例えば
+
+-- ----------------------------
+-- Table structure for shop_categories
+-- ----------------------------
+DROP TABLE IF EXISTS "public"."shop_categories";
+CREATE TABLE "public"."shop_categories" (
+  "id" int8 NOT NULL DEFAULT nextval('shop_categories_id_seq'::regclass), -- // スキーマ初回定義時は serial8 などで定義する
+  "shop_id" int8 NOT NULL,
+  "category_id" int4 NOT NULL,
+  "created_at" timestamp(0),
+  "updated_at" timestamp(0),
+  "deleted_at" timestamp(0)
+);
+
+上記のようなスキーマを持つテーブルがあったとする｡
+
+この場合､一括登録したレコードのプライマリキーのmax値が 100だったとする｡
+
+そして､このテーブルのシーケンス値(※この場合では 'shop_categories_id_seq' がシーケンスとなる)が現時点で10だったとする｡
+
+すると､insertする場合に､プライマリキーのduplication error が起こる｡
+
+この場合の対処は以下の様にする｡
+
+
+まず､現在のマックスシーケンスを取得する
+select max(id) from shop_categories; -- // 現時点のマックスプライキーを取得する
+
+現在のシーケンス値を上記の値で上書きする
+つまり､
+
+select setval('shop_categories_id_seq', (select max(id) from shop_categories));
+とsetval関数を使って現在のシーケンスに割当てる｡
+
+再度､
+select currval('shop_categories_id_seq');
+とすると shop_categoriesテーブルのmax(id)の値でシーケンスが更新される

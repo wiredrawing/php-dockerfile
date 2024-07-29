@@ -1,0 +1,660 @@
+Rocky Linuxに PHPとApacheの動作環境を構築する
+
+
+1. パッケージの更新
+dnf update
+
+
+2. sshの接続が切れないようにする
+
+デフォルトのsshd_configファイルをバックアップ
+cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup.20211214
+
+vi /etc/ssh/sshd_config
+上記ssh接続の設定ファイルを開き
+
+Port 55522 # 任意のポート
+
+ClientAliveInterval 5
+ClientAliveCountMax 10
+
+上記のように任意の値に変更する
+
+
+3. sshサーバーのポートを変更する
+
+sshd_config ファイルの
+
+Port 22 => Port 55522
+
+など任意のポート番号に変更する
+
+
+4. VPS側のファイヤーウォールが動いてはいるが一旦OS側のファイヤーウォールは起動
+
+# sshサーバーを動作させる 55522ポートを許可する
+firewall-cmd --add-port=55522/tcp --zone=public --permanent
+
+# firewalld再起動
+firewall-cmd --reload
+
+5. 任意のユーザーを作成する
+
+# RockyLinuxサーバーなのでrockyとする
+useradd rocky
+passwd pass********wordf
+
+6. 作成したばかりのrockyユーザに切り替える
+
+# ユーザー切り替え
+su rocky
+# ホームディレクトリに移動
+cd ~
+# rockyユーザーでログインするための秘密鍵の作成
+# rsaより強固な鍵を作成
+ssh-keygen -t ed25519
+# authorized_keys に公開鍵を追加
+cat ~/.ssh/id_ed25519.pub >> authorized_keys
+# バーミッションを 0600に変更
+chmod 0600 ./authorized_keys
+
+7. クライアントから上記の設定でssh接続を試みる
+
+ssh rocky@XXX.XXX.XXX.XXX -i id_ed25519 -p 55522
+
+接続できればOK
+
+8. ローカルネットワークを作成
+
+# NICを確認
+ip addr show
+
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether fa:16:3e:94:3c:df brd ff:ff:ff:ff:ff:ff
+    inet 133.18.205.33/23 brd 133.18.205.255 scope global noprefixroute eth0
+       valid_lft forever preferred_lft forever
+    inet 10.150.11.1/24 brd 10.150.11.255 scope global noprefixroute eth0
+       valid_lft forever preferred_lft forever
+    inet6 2406:8c00:0:3410:133:18:205:33/64 scope global noprefixroute
+       valid_lft forever preferred_lft forever
+    inet6 fe80::f816:3eff:fe94:3cdf/64 scope link noprefixroute
+       valid_lft forever preferred_lft forever
+3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether fa:16:3e:23:77:06 brd ff:ff:ff:ff:ff:ff
+
+上記のような感じになっている
+
+9. ネットワークマネージャーコマンドで確認
+# ネットワークマネージャ
+nmcli con
+
+NAME                UUID                                  TYPE      DEVICE
+Wired connection 1  b7d6ccf2-35ce-3010-8206-e422eed87f55  ethernet  eth1
+System eth0         5fb06bd0-0bb0-7ffb-45f1-d6edd65f3e03  ethernet  eth0
+
+上記の様な出力を得る
+
+10. 有線接続となっている名称を変更する
+
+# 名前の変更
+nmcli con mod "Wired connection 1" connection.id eth1
+
+# 変更内容の確認
+nmcli con
+
+eth1         b7d6ccf2-35ce-3010-8206-e422eed87f55  ethernet  eth1
+System eth0  5fb06bd0-0bb0-7ffb-45f1-d6edd65f3e03  ethernet  eth0
+
+有線接続の "Wired connection 1" が eth1となっている
+
+
+
+11. /etc/sysconfig/network-scripts/ ディレクトリ配下に ifcfg-eth1というファイルが存在することを確認する
+
+cd /etc/sysconfig/network-scripts/
+ls
+
+ifcfg-eth0  ifcfg-eth1
+
+上記のような出力があればOK
+
+12. ifcfg-eth1 の中身を確認する
+
+cat /etc/sysconfig/network-scripts/ifcfg-eth1
+
+TYPE=Ethernet
+PROXY_METHOD=none
+BROWSER_ONLY=no
+BOOTPROTO=dhcp
+DEFROUTE=yes
+IPV4_FAILURE_FATAL=no
+IPV6INIT=yes
+IPV6_AUTOCONF=yes
+IPV6_DEFROUTE=yes
+IPV6_FAILURE_FATAL=no
+IPV6_ADDR_GEN_MODE=stable-privacy
+NAME=eth1
+UUID=b7d6ccf2-35ce-3010-8206-e422eed87f55
+DEVICE=eth1
+ONBOOT=yes
+AUTOCONNECT_PRIORITY=-999
+
+上記のような設定がされている
+
+13. コネクションとインターフェースを実際に紐付ける
+
+nmcli con mod "eth1" connection.interface-name eth1
+
+14. 任意のプライベートIPを付与する
+
+nmcli con mod eth1 \
+ ipv4.method manual \
+ ipv4.address "192.168.1.1/24" \
+ connection.autoconnect "yes" \
+ ipv6.method ignore
+
+
+15. 上記コマンド実行後,変更内容を確認する
+
+ip addr show
+
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether fa:16:3e:94:3c:df brd ff:ff:ff:ff:ff:ff
+    inet 133.18.205.33/23 brd 133.18.205.255 scope global noprefixroute eth0
+       valid_lft forever preferred_lft forever
+    inet 10.150.11.1/24 brd 10.150.11.255 scope global noprefixroute eth0
+       valid_lft forever preferred_lft forever
+    inet6 2406:8c00:0:3410:133:18:205:33/64 scope global noprefixroute
+       valid_lft forever preferred_lft forever
+    inet6 fe80::f816:3eff:fe94:3cdf/64 scope link noprefixroute
+       valid_lft forever preferred_lft forever
+3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether fa:16:3e:23:77:06 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.1.1/24 brd 192.168.1.255 scope global noprefixroute eth1
+       valid_lft forever preferred_lft forever
+    inet6 fe80::f816:3eff:fe23:7706/64 scope link
+       valid_lft forever preferred_lft forever
+
+
+eth1が先程指定したプライベートIPになっていることを確認する
+
+
+16. ついでに /etc/sysconfig/network-scripts/ifcfg-eth1 の中身も確認する
+
+cat /etc/sysconfig/network-scripts/ifcfg-eth1
+
+TYPE=Ethernet
+PROXY_METHOD=none
+BROWSER_ONLY=no
+BOOTPROTO=none
+DEFROUTE=yes
+IPV4_FAILURE_FATAL=no
+IPV6INIT=no
+NAME=eth1
+UUID=b7d6ccf2-35ce-3010-8206-e422eed87f55
+DEVICE=eth1
+ONBOOT=yes
+AUTOCONNECT_PRIORITY=-999
+IPADDR=192.168.1.1
+PREFIX=24
+
+ipv6の項目がなくなり
+ipaddresとprefixの設定が追加されていることがわかる
+
+
+
+17. 1から16までをDBサーバーにも同様の作業を繰り返す(※ここはDBサーバー上での作業)
+
+ip addr show
+
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether fa:16:3e:03:6d:76 brd ff:ff:ff:ff:ff:ff
+    inet 133.18.233.168/23 brd 133.18.233.255 scope global noprefixroute eth0
+       valid_lft forever preferred_lft forever
+    inet 10.150.11.1/24 brd 10.150.11.255 scope global noprefixroute eth0
+       valid_lft forever preferred_lft forever
+    inet6 2406:8c00:0:3424:133:18:233:168/64 scope global noprefixroute
+       valid_lft forever preferred_lft forever
+    inet6 fe80::f816:3eff:fe03:6d76/64 scope link noprefixroute
+       valid_lft forever preferred_lft forever
+3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether fa:16:3e:47:59:c7 brd ff:ff:ff:ff:ff:ff
+
+上記のような内容が表示される
+
+
+18. コネクション名を変更する(※ここはDBサーバー上での作業)
+
+# 名前の変更
+nmcli con mod "Wired connection 1" connection.id eth1
+
+# 変更内容の確認
+nmcli con
+
+NAME         UUID                                  TYPE      DEVICE
+eth1         fba0376d-52c2-3b2e-84e5-f5cca60584cc  ethernet  eth1
+System eth0  5fb06bd0-0bb0-7ffb-45f1-d6edd65f3e03  ethernet  eth0
+
+上記のような設定になっている
+
+19. 任意のプライベートアドレスを設定する(※ここはDBサーバー上での作業)
+nmcli con mod eth1 \
+  ipv4.method manual \
+  ipv4.address "192.168.1.2/24" \
+  connection.autoconnect "yes" \
+  ipv6.method ignore
+
+
+20. 設定後の内容確認を行う(※ここはDBサーバー上での作業)
+
+ip addr show
+
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether fa:16:3e:03:6d:76 brd ff:ff:ff:ff:ff:ff
+    inet 133.18.233.168/23 brd 133.18.233.255 scope global noprefixroute eth0
+       valid_lft forever preferred_lft forever
+    inet 10.150.11.1/24 brd 10.150.11.255 scope global noprefixroute eth0
+       valid_lft forever preferred_lft forever
+    inet6 2406:8c00:0:3424:133:18:233:168/64 scope global noprefixroute
+       valid_lft forever preferred_lft forever
+    inet6 fe80::f816:3eff:fe03:6d76/64 scope link noprefixroute
+       valid_lft forever preferred_lft forever
+3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether fa:16:3e:47:59:c7 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.1.2/24 brd 192.168.1.255 scope global noprefixroute eth1
+       valid_lft forever preferred_lft forever
+    inet6 fe80::f816:3eff:fe47:59c7/64 scope link tentative
+       valid_lft forever preferred_lft forever
+
+上記のようにeth1のネットワーク・インターフェースに
+プライベートIPアドレスが付与されている
+
+
+21. DB <==> WEB のサーバー間でpingが通るかを検証する(※ここはDBサーバー上での作業)
+
+
+WEB(192.168.1.1)サーバ側からDBサーバー側へ ping -c 10 192.168.1.2
+DB(192.168.1.2)サーバ側からWEBサーバー側へ ping -c 10 192.168.1.1
+
+
+22. 疎通確認が完了したら,DBサーバにpostgresql13位をインストールする(※ここはDBサーバー上での作業)
+
+dnf module list postgresql
+
+上記コマンドでインストール可能なpostgresqlバージョンを確認
+
+Last metadata expiration check: 0:41:55 ago on Tue 14 Dec 2021 12:30:36 PM JST.
+Rocky Linux 8 - AppStream
+Name                               Stream                         Profiles                                   Summary
+postgresql                         9.6                            client, server [d]                         PostgreSQL server and client module
+postgresql                         10 [d]                         client, server [d]                         PostgreSQL server and client module
+postgresql                         12                             client, server [d]                         PostgreSQL server and client module
+postgresql                         13                             client, server [d]                         PostgreSQL server and client module
+
+Hint: [d]efault, [e]nabled, [x]disabled, [i]nstalled
+
+23. 今回はpostgresql:12をインストールする(※ここはDBサーバー上での作業)
+
+dnf module enable postgresql:12 -y
+
+上記コマンドでpostgresql:12がインストール可能となる
+
+# 実際のインストールコマンド
+dnf install postgresql postgresql-server postgresql-contrib
+
+
+24. インストールが完了したことを確認する(※ここはDBサーバー上での作業)
+
+psql --verison
+
+psql (PostgreSQL) 12.7
+
+上記のように正しくpostgresql:12がインストールされた
+
+
+25. postgresqlの初期化(※ここはDBサーバー上での作業)
+
+/usr/bin/postgresql-setup initdb
+
+WARNING: using obsoleted argument syntax, try --help
+WARNING: arguments transformed to: postgresql-setup --initdb --unit postgresql
+ * Initializing database in '/var/lib/pgsql/data'
+ * Initialized, logs are in /var/lib/pgsql/initdb_postgresql.log
+
+上記のような内容が表示される
+
+ついでに
+
+systemctl enable --now postgresql
+
+
+26. 起動の確認 (※ここはDBサーバー上での作業)
+
+systemctl status postgresql
+
+● postgresql.service - PostgreSQL database server
+   Loaded: loaded (/usr/lib/systemd/system/postgresql.service; enabled; vendor preset: disabled)
+   Active: active (running) since Tue 2021-12-14 13:23:45 JST; 27s ago
+  Process: 8489 ExecStartPre=/usr/libexec/postgresql-check-db-dir postgresql (code=exited, status=0/SUCCESS)
+ Main PID: 8493 (postmaster)
+    Tasks: 8 (limit: 49505)
+   Memory: 16.9M
+   CGroup: /system.slice/postgresql.service
+           ├─8493 /usr/bin/postmaster -D /var/lib/pgsql/data
+           ├─8494 postgres: logger
+           ├─8496 postgres: checkpointer
+           ├─8497 postgres: background writer
+           ├─8498 postgres: walwriter
+           ├─8499 postgres: autovacuum launcher
+           ├─8500 postgres: stats collector
+           └─8501 postgres: logical replication launcher
+
+Dec 14 13:23:45 v133-18-233-168.vir.kagoya.net systemd[1]: Starting PostgreSQL database server...
+Dec 14 13:23:45 v133-18-233-168.vir.kagoya.net postmaster[8493]: 2021-12-14 13:23:45.225 JST [8493] LOG:  starting PostgreSQL 12.7 on x86_64-redhat-linux-gnu, compile>
+Dec 14 13:23:45 v133-18-233-168.vir.kagoya.net postmaster[8493]: 2021-12-14 13:23:45.226 JST [8493] LOG:  listening on IPv6 address "::1", port 5432
+Dec 14 13:23:45 v133-18-233-168.vir.kagoya.net postmaster[8493]: 2021-12-14 13:23:45.226 JST [8493] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+Dec 14 13:23:45 v133-18-233-168.vir.kagoya.net postmaster[8493]: 2021-12-14 13:23:45.227 JST [8493] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+Dec 14 13:23:45 v133-18-233-168.vir.kagoya.net postmaster[8493]: 2021-12-14 13:23:45.228 JST [8493] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+Dec 14 13:23:45 v133-18-233-168.vir.kagoya.net postmaster[8493]: 2021-12-14 13:23:45.258 JST [8493] LOG:  redirecting log output to logging collector process
+Dec 14 13:23:45 v133-18-233-168.vir.kagoya.net postmaster[8493]: 2021-12-14 13:23:45.258 JST [8493] HINT:  Future log output will appear in directory "log".
+Dec 14 13:23:45 v133-18-233-168.vir.kagoya.net systemd[1]: Started PostgreSQL database server.
+
+問題なさそう
+
+
+27. webアプリケーション側からアクセスするための ユーザをpostgresql上に作成する (※ここはDBサーバー上での作業)
+
+# postgresqlのスーパーユーザーになる
+su - postgres # => postgresユーザになる場合はかならず [su - postgres] というコマンドをうつ
+
+psql コマンドでpostgresqlに入る
+
+postgres=# create role admin with superuser login password 'pass********word';
+
+今回は上記のような
+ID => admin
+Password => pass********word
+
+で作成した
+
+
+28. WEBサーバー側からpostgresqlにアクセスできるようにpostgresqlの設定を変更する (※ここはDBサーバー上での作業)
+
+cp /var/lib/pgsql/data/pg_hba.conf /var/lib/pgsql/data/pg_hba.conf.backup.20211214
+
+vi /var/lib/pgsql/data/pg_hba.conf
+
+# ----------------------------------------------------------
+# ローカルネットワーク 192.168.1.1からアクセスできるように許可する
+# ----------------------------------------------------------
+host    all             admin           192.168.1.1/24          md5
+
+上記のpg_hba.confファイルに上記の設定を追加する
+
+cp /var/lib/pgsql/data/postgresql.conf /var/lib/pgsql/data/postgresql.conf.backup.20211214
+
+vi /var/lib/pgsql/data/postgresql.conf
+
+上記の設定ファイルに
+
+# ----------------------------------------------------------
+# ローカルネットワーク 192.168.1.1からアクセスできるように許可する
+# ----------------------------------------------------------
+listen_addresses = '*'
+
+
+上記の設定更新が完了したら,再度postgresqlサーバーを再起動する
+
+ただ,現状のままだとファイヤーウォールが動作中のため
+
+# postgresqlのサービス名でファイヤーウォールを開放する
+firewall-cmd --permanent --add-service=postgresql
+# 必ずファイヤーウォールの再起動
+firewall-cmd --reload
+# 変更の確認
+firewall-cmd --list-all
+
+
+
+※---------------------------------------------------------------
+※ここから再度WEBサーバー側での作業となる
+※---------------------------------------------------------------
+29. WEBサーバー側からDBサーバのpostgrsqlにアクセスできるように postgresqlコマンドラインツールをインストールする
+
+dnf module list postgresql
+
+Last metadata expiration check: 2:43:28 ago on Tue 14 Dec 2021 11:10:26 AM JST.
+Rocky Linux 8 - AppStream
+Name                               Stream                         Profiles                                   Summary
+postgresql                         9.6                            client, server [d]                         PostgreSQL server and client module
+postgresql                         10 [d]                         client, server [d]                         PostgreSQL server and client module
+postgresql                         12                             client, server [d]                         PostgreSQL server and client module
+postgresql                         13                             client, server [d]                         PostgreSQL server and client module
+
+Hint: [d]efault, [e]nabled, [x]disabled, [i]nstalled
+
+
+# サーバー側と同一のpostgresqlバージョンを指定
+dnf module enable postgresql:12 -y
+
+# postgresqlのコマンドラインツールのみインストール
+dnf install postgresql
+
+# インストールが完了したら
+psql --version
+
+# 同じメインバージョンのpostgresqlであることを確認する
+psql (PostgreSQL) 12.7
+
+WEBサーバー上から
+psql -h 192.168.1.2 -U admin -d postgres
+のコマンドでDBサーバに接続できればOK
+
+
+
+30. WEBサーバーにapacheをインストールする
+
+dnf install httpd
+
+Last metadata expiration check: 3:00:21 ago on Tue 14 Dec 2021 11:10:26 AM JST.
+Dependencies resolved.
+=====================================================================================================================================================================
+ Package                                Architecture                Version                                                     Repository                      Size
+=====================================================================================================================================================================
+Installing:
+ httpd                                  x86_64                      2.4.37-43.module+el8.5.0+714+5ec56ee8                       appstream                      1.4 M
+Installing dependencies:
+ apr                                    x86_64                      1.6.3-12.el8                                                appstream                      128 k
+ apr-util                               x86_64                      1.6.1-6.el8.1                                               appstream                      104 k
+ httpd-filesystem                       noarch                      2.4.37-43.module+el8.5.0+714+5ec56ee8                       appstream                       38 k
+ httpd-tools                            x86_64                      2.4.37-43.module+el8.5.0+714+5ec56ee8                       appstream                      106 k
+ mailcap                                noarch                      2.1.48-3.el8                                                baseos                          38 k
+ mod_http2                              x86_64                      1.15.7-3.module+el8.5.0+695+1fa8055e                        appstream                      153 k
+ rocky-logos-httpd                      noarch                      85.0-3.el8                                                  baseos                          22 k
+Installing weak dependencies:
+ apr-util-bdb                           x86_64                      1.6.1-6.el8.1                                               appstream                       23 k
+ apr-util-openssl                       x86_64                      1.6.1-6.el8.1                                               appstream                       26 k
+Enabling module streams:
+ httpd                                                              2.4
+
+Transaction Summary
+=====================================================================================================================================================================
+Install  10 Packages
+
+Total download size: 2.0 M
+Installed size: 5.5 M
+Is this ok [y/N]:
+
+
+[y]を入力して実行
+
+# 自動起動を許可
+systemctl enable httpd
+
+systemctl start httpd
+
+更にファイヤーウォールによる通信許可を行う
+# httpdのサービス名でファイヤーウォールを開放する
+firewall-cmd --permanent --add-service=http
+# 必ずファイヤーウォールの再起動
+firewall-cmd --reload
+# 変更の確認
+firewall-cmd --list-all
+
+
+
+31. php-7.4をインストール
+
+dnf module list php
+
+Last metadata expiration check: 3:08:01 ago on Tue 14 Dec 2021 11:10:26 AM JST.
+Rocky Linux 8 - AppStream
+Name                      Stream                       Profiles                                       Summary
+php                       7.2 [d]                      common [d], devel, minimal                     PHP scripting language
+php                       7.3                          common [d], devel, minimal                     PHP scripting language
+php                       7.4                          common [d], devel, minimal                     PHP scripting language
+
+Hint: [d]efault, [e]nabled, [x]disabled, [i]nstalled
+
+php:7.4をenableにする
+dnf module enable php:7.4 -y
+
+最後に,Laravelの動作に必要なモジュールなどと一緒にインストールを行う
+
+
+dnf install php \
+  php-pgsql php-mysqlnd php-openssl \
+  php-dom php-bcmath php-gmp \
+  php-gd php-ftp php-fpm \
+  php-exif php-sockets php-zip
+
+上記のモジュールを含めてインストール
+
+PHPがインストールできたら
+以下URLより php composerコマンドを実行する
+https://getcomposer.org/download/
+
+その後Laravelフレームワークがインストールできれば
+構築完了
+
+
+32. FTPサーバの構築
+
+dnf install vsftpd
+
+firewall-cmd --permanent --add-service=ftp
+firewall-cmd --reload
+firewall-cmd --list-all
+
+
+# 一旦設定ファイルのバックアップを取得する
+cp /etc/vsftpd/vsftpd.conf  /etc/vsftpd/vsftpd.conf.backup.20211214
+
+vi /etc/vsftpd/vsftp.conf を開き以下の設定を追加する
+
+# -------------------------------------------
+# vsftpd.confの最下部に以下の設定を追加
+# -------------------------------------------
+user_config_dir=/etc/vsftpd/user_config_dir
+use_localtime=YES
+pam_service_name=vsftpd
+userlist_enable=YES
+chroot_local_user=YES
+chroot_list_enable=YES
+# 必ず必要
+allow_writeable_chroot=YES
+pasv_enable=YES
+pasv_min_port=60000
+pasv_max_port=60010
+
+# chrootを設定する uesr_config_dirを作成する
+mdkri /etc/vsftpd/user_config_dir
+
+# rockyユーザの設定を作成
+touch /etc/vsftpd/user_config_dir/rocky
+
+# 上記のファイルに以下のような設定を記述する
+local_root=/var/www/html/rocky
+write_enable=YES
+
+また
+
+touch /etc/vsftpd/chroot_list
+でchroot_listファイルを作成しておく
+
+以上の作業が完了したら再度
+systemctl restart vsftpd コマンドで FTPサーバを再起動させる
+
+# --------------------------------------------------
+# ナッセの新サーバー上でのvsftpdの設定ファイル
+# --------------------------------------------------
+anonymous_enable=NO
+local_enable=YES
+write_enable=YES
+local_umask=022
+dirmessage_enable=YES
+
+xferlog_enable=YES
+connect_from_port_20=YES
+xferlog_std_format=YES
+listen=YES
+listen_ipv6=NO
+pam_service_name=vsftpd
+
+userlist_enable=YES
+force_dot_files=YES
+chroot_local_user=YES
+chroot_list_enable=YES
+use_localtime=YES
+pasv_promiscuous=YES
+
+pasv_min_port=50000
+pasv_max_port=50030
+
+ascii_upload_enable=YES
+ascii_download_enable=YES
+xferlog_file=/var/log/vsftpd.log
+xferlog_std_format=NO
+
+pasv_address=103.37.110.138
+pasv_addr_resolve=YES
+allow_writeable_chroot=YES
+
+
+# ------------------------------------------------
+# vsftpd.confの最下部に以下の設定を追加
+# ユーザーごとにアクセスできるディレクトリを固定
+# ------------------------------------------------
+user_config_dir=/etc/vsftpd/user_config_dir
+#use_localtime=YES
+#pam_service_name=vsftpd
+#userlist_enable=YES
+#chroot_local_user=YES
+#chroot_list_enable=YES
+# 必ず必要
+#allow_writeable_chroot=YES
+#pasv_enable=YES

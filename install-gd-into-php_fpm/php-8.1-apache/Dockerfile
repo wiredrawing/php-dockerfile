@@ -1,5 +1,5 @@
 # wordpress自体はapacheで動作させる
-FROM php:7.4-apache
+FROM php:8.1-apache
 
 # Composerのインストール
 

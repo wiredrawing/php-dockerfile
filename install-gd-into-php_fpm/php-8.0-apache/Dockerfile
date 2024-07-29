@@ -1,5 +1,7 @@
+# How to build own container image.
+# docker build -t your-container-image  [.] パス
 # wordpress自体はapacheで動作させる
-FROM php:7.4-apache
+FROM php:8.0-apache
 
 # Composerのインストール
 

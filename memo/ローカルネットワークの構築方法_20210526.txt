@@ -1,0 +1,193 @@
+######################################################
+# SELINUXの無効化
+######################################################
+
+(1) getenforce
+(※上記コマンドで Enforcing と帰って来た場合
+SELINUXが動作中のた SELINUXをOFFににする)
+
+
+(2) vi /etc/selinux/config
+※上記コマンドで configを開き
+
+SELINUX の項目を disabled に変更する
+
+(3)reboot
+※ 上記コマンドで再起動する
+
+(4)sestatus
+
+# => SELinux status:                 disabled
+再度,SELINUXのステータスを確認し
+disabledの無効になっていることを確認する
+
+
+######################################################
+#nasse開発用サーバーローカルネットワーク構築手順書
+######################################################
+※CentOS7の場合です.
+CentOS8以降のLINUXでは以下の手順で構築できません
+
+■ webサーバー側です｡
+(1)ifconfig
+eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 133.18.194.192  netmask 255.255.254.0  broadcast 133.18.195.255
+        inet6 2406:8c00:0:3405:133:18:194:192  prefixlen 64  scopeid 0x0<global>
+        inet6 fe80::f816:3eff:fe69:974  prefixlen 64  scopeid 0x20<link>
+        ether fa:16:3e:69:09:74  txqueuelen 1000  (Ethernet)
+        RX packets 3308  bytes 237168 (231.6 KiB)
+        RX errors 0  dropped 124  overruns 0  frame 0
+        TX packets 311  bytes 42150 (41.1 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+(※ネットワークの設定状況を確認する)
+※ kagoyaVPSではデフォルトでは eth1 に該当するネットワークインターフェースは存在しないことを
+事前に確認して下さい.
+
+
+
+(2)vi /etc/sysconfig/network-scripts/ifcfg-eth1
+(※イーサネットファイルを作成する)
+
+
+(3)
+DEVICE="eth1"
+NM_CONTROLLED="no"
+IPADDR=192.168.0.1
+NETMASK=255.255.255.0
+
+(4)systemctl restart network
+(※ネットワークマネージャの再起動)
+
+
+(5)ifconfig
+(※再度ネットワーク状況を確認)
+eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 133.18.194.192  netmask 255.255.254.0  broadcast 133.18.195.255
+        inet6 2406:8c00:0:3405:133:18:194:192  prefixlen 64  scopeid 0x0<global>
+        inet6 fe80::f816:3eff:fe69:974  prefixlen 64  scopeid 0x20<link>
+        ether fa:16:3e:69:09:74  txqueuelen 1000  (Ethernet)
+        RX packets 4652  bytes 327370 (319.6 KiB)
+        RX errors 0  dropped 181  overruns 0  frame 0
+        TX packets 394  bytes 49672 (48.5 KiB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+eth1: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.0.1  netmask 255.255.255.0  broadcast 192.168.0.255
+        inet6 fe80::f816:3eff:feda:c046  prefixlen 64  scopeid 0x20<link>
+        ether fa:16:3e:da:c0:46  txqueuelen 1000  (Ethernet)
+        RX packets 6  bytes 468 (468.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 10  bytes 656 (656.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+eth1の箇所を確認 (※ネットワークが追加されていることを確認する)
+
+
+
+
+######################################################
+# postgresをローカルネットワーク内の特定IPのネットマスク帯からの
+# アクセスを許可する設定
+######################################################
+
+(1)vi /var/lib/pgsql/11/data/pg_hba.conf
+上記コマンドで pg_hba.confファイルを編集する
+
+
+```pg_hba.conf
+
+# localはログイン中のターミナルの端末自身かのアクセス時
+# "local" is for Unix domain socket connections only
+# postgresアカウントのみはpeer認証を許可する
+local   all             postgres                                peer
+local   all             all                                     md5
+
+# host設定時はTCP/UDP接続時のアクセス方法を記述する
+# IPv4 local connections:
+host    all             all             127.0.0.1/32            md5
+host    all             all             192.168.0.1/24          md5
+# IPv6 local connections:
+host    all             all             ::1/128                 ident
+# Allow replication connections from localhost, by a user with the
+# replication privilege.
+local   replication     all                                     peer
+host    replication     all             127.0.0.1/32            ident
+host    replication     all             ::1/128                 ident
+
+```
+
+
+(2) Peer認証とmd5認証時の注意点
+
+＃ psqlコマンドで-hを指定しない場合は postgresユーザーの場合のみpeer認証が許可される
+
+su postgres  # => ユーザー変更  OSのユーザーとログインしたいpostgresqlサーバーのユーザーが一致すればログイン可能(Peer認証)
+psql -U postgres  # => peer認証が許可
+psql -U postgres -h 192.168.0.2 # => -hオプションを指定した場合 unixドメインでの接続ではなくtcp接続となる
+
+
+(3) IP:192.168.0.1のwebサーバー側からのアクセス時
+※ この条件の場合ログイン時のルールは
+
+host    all             all             192.168.0.1/24          md5
+このルールに該当するため、TCP接続かつ通常のパスワード認証による接続となる
+
+例) psql -U admin -h 192.168.0.2 # tcp接続かつmd5認証のみ許可
+
+
+(4) vi /var/lib/pgsql/11/data/postgresql.conf
+
+※デフォルトではpostgresqlサーバーは localhost(127.0.0.1)のみlistenするので
+追加した NIC上のIP 192.168.0.2に関しても listenするように追記する
+
+postgresqlサーバーのインストール手順書の通りにインストールした場合
+上記の箇所に postgresql.confという設定ファイルが存在します
+
+
+```
+#------------------------------------------------------------------------------
+# CONNECTIONS AND AUTHENTICATION
+#------------------------------------------------------------------------------
+
+# - Connection Settings -
+
+listen_addresses = 'localhost,192.168.0.2'
+#listen_addresses = 'localhost'         # what IP address(es) to listen on;
+                                        # comma-separated list of addresses;
+                                        # defaults to 'localhost'; use '*' for all
+                                        # (change requires restart)
+port = 5432
+#port = 5432                            # (change requires restart)
+
+```
+
+当該ファイルの冒頭箇所に
+listen_addresses という項目があるので
+localhostにつづけてカンマ区切りで接続したいNICのIPを指定します
+
+上記の設定後,postgresqlサーバーを再起動します.
+
+この場合
+
+IP 192.168.0.1 の webサーバー上から IP 192.168.0.2:5432のpostgresqlサーバーへのアクセスを
+許可できる設定となります.
+

@@ -9,6 +9,9 @@
 
 FROM php:7.3-apache
 
+# Composerのインストール
+RUN cd /usr/bin && curl -s http://getcomposer.org/installer | php && ln -s /usr/bin/composer.phar /usr/bin/composer
+
 # PHPの拡張に必要なライブラリ
 RUN apt update && apt install -y  libpng-dev  \
     libjpeg62-turbo-dev  \
@@ -65,6 +68,6 @@ RUN apt -y install imagemagick libmagickwand-dev && \
 # apache mod_rewriteの有効化
 RUN a2enmod rewrite
 
-WORKDIR /var/www/html
+WORKDIR /var/www
 EXPOSE 80
 CMD ["apache2ctl", "-D", "FOREGROUND"]
